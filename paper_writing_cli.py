@@ -18,6 +18,16 @@ import os
 import shutil
 from datetime import datetime
 
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+default_model_name = (
+    os.getenv("OPENAI")
+    if os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("OPENAI")
+    else "gemini-3.1-pro-preview"
+)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -51,12 +61,12 @@ def main():
     )
     parser.add_argument(
         "--writer_model_name",
-        default="gemini-3.1-pro-preview",
+        default=default_model_name,
         help="LLM for writer and literature agents.",
     )
     parser.add_argument(
         "--reflection_model_name",
-        default="gemini-3.1-pro-preview",
+        default=default_model_name,
         help="LLM for reflection agents.",
     )
     parser.add_argument(
@@ -72,7 +82,7 @@ def main():
     )
     parser.add_argument(
         "--plotting_model_name",
-        default="gemini-3.1-pro-preview",
+        default=default_model_name,
         help="LLM for the plotting agent.",
     )
     parser.add_argument(

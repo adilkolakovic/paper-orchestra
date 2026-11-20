@@ -20,11 +20,14 @@ from google import genai
 from google.genai import types  # type: ignore
 import time
 import os
-import mimetypes
 import base64
 import threading
 
 import dotenv
+from utils.openai_utils import (
+    call_openai_models_with_content,
+    is_azure_openai_deployment,
+)
 
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
@@ -155,6 +158,102 @@ def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
     return json.dumps(result)
 
 
+def _append_openai_content(content: list, item) -> None:
+    if isinstance(item, str):
+        content.append({"type": "text", "text": item})
+        return
+
+    if isinstance(item, types.Content):
+        for part in item.parts or []:
+            _append_openai_content(content, part)
+        return
+
+    if not isinstance(item, types.Part):
+        raise TypeError(f"Unsupported Gemini content part: {type(item).__name__}")
+
+    if item.text:
+        content.append({"type": "text", "text": item.text})
+        return
+
+    inline_data = item.inline_data
+    if not inline_data:
+        raise ValueError("Gemini content part has neither text nor inline data.")
+
+    mime_type = inline_data.mime_type or "application/octet-stream"
+    data = inline_data.data
+    if mime_type.startswith("image/"):
+        encoded_data = base64.b64encode(data).decode("utf-8")
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{encoded_data}",
+                },
+            }
+        )
+        return
+
+    if mime_type == "application/pdf":
+        import pymupdf
+
+        with pymupdf.open(stream=data, filetype="pdf") as document:
+            pdf_text = "\n".join(page.get_text() for page in document)
+        if not pdf_text.strip():
+            raise ValueError("Could not extract text from the provided PDF.")
+        content.append({"type": "text", "text": pdf_text})
+        return
+
+    raise ValueError(f"Azure OpenAI cannot handle Gemini input type '{mime_type}'.")
+
+
+def _call_azure_openai_with_contents(
+    contents,
+    model_name: str,
+    max_retries: int,
+    base_interval_sec: int,
+    result_parsing_func: callable,
+    generation_configs: dict,
+    check_parsed_response_not_none: bool,
+):
+    configs = dict(generation_configs)
+    if configs.get("tools"):
+        raise ValueError(
+            "Gemini tools are not supported by the Azure OpenAI backend."
+        )
+    configs.pop("tools", None)
+    system_instruction = configs.pop("system_instruction", None)
+
+    if isinstance(contents, (str, types.Part, types.Content)):
+        contents = [contents]
+
+    message_content = []
+    for item in contents:
+        _append_openai_content(message_content, item)
+
+    if not message_content:
+        raise ValueError("No supported content was provided to the model.")
+
+    if isinstance(system_instruction, str):
+        system_prompt = system_instruction
+    elif isinstance(system_instruction, types.Content):
+        system_prompt = "\n".join(
+            part.text for part in system_instruction.parts or [] if part.text
+        )
+    else:
+        system_prompt = None
+
+    return call_openai_models_with_content(
+        content=message_content,
+        model_name=model_name,
+        max_retries=max_retries,
+        base_interval_sec=base_interval_sec,
+        result_parsing_func=result_parsing_func,
+        generation_configs=configs,
+        check_parsed_response_not_none=check_parsed_response_not_none,
+        system_prompt=system_prompt,
+    )
+
+
 def call_gemini_with_contents(
     contents: types.Content,
     model_name: str,
@@ -165,8 +264,19 @@ def call_gemini_with_contents(
     check_parsed_response_not_none: bool = True,
 ):
     """
-    Calls the Gemini API (text-only) with retry logic and exponential backoff.
+    Calls Gemini, or routes the configured Azure OpenAI deployment.
     """
+
+    if is_azure_openai_deployment(model_name):
+        return _call_azure_openai_with_contents(
+            contents=contents,
+            model_name=model_name,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            result_parsing_func=result_parsing_func,
+            generation_configs=generation_configs,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
 
     raw_response = None
     parsed_response = None

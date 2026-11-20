@@ -142,9 +142,15 @@ def render_sidebar():
         except Exception as exception_object:
             st.sidebar.error(f"Error loading example: {exception_object}")
 
+    azure_deployment = os.getenv("OPENAI")
+    use_azure_openai = bool(
+        os.getenv("AZURE_OPENAI_ENDPOINT") and azure_deployment
+    )
     models = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+    if use_azure_openai:
+        models.insert(0, azure_deployment)
     selected_model = st.sidebar.selectbox(
-        "Select Model", models, disabled=st.session_state.locked
+        "Select Model", models, index=0, disabled=st.session_state.locked
     )
 
     templates = ["cvpr2025", "iclr2025"]
@@ -156,7 +162,7 @@ def render_sidebar():
     enable_plotting = st.sidebar.selectbox(
         "Enable Figure Generation",
         plotting_options,
-        index=0,
+        index=1 if use_azure_openai else 0,
         disabled=st.session_state.locked,
     )
 

@@ -32,20 +32,41 @@ _openai_client = None
 _openai_client_lock = threading.Lock()
 
 
+def is_azure_openai_deployment(model_name: str) -> bool:
+    deployment_name = os.getenv("OPENAI")
+    return bool(
+        os.getenv("AZURE_OPENAI_ENDPOINT")
+        and deployment_name
+        and model_name == deployment_name
+    )
+
+
 def get_openai_client() -> OpenAI:
     """Returns a shared OpenAI client, creating it on first use.
 
-    The client is created lazily so that OPENAI_API_KEY is only required when
-    an OpenAI model is actually called (e.g. Gemini-only setups don't need it).
+    Azure OpenAI credentials are loaded lazily from Key Vault when needed.
     """
     global _openai_client
     if _openai_client is None:
         with _openai_client_lock:
             if _openai_client is None:
-                openai_api_key = os.environ.get("OPENAI_API_KEY")
-                if not openai_api_key:
-                    raise ValueError("OPENAI_API_KEY must be set to use OpenAI models.")
-                _openai_client = OpenAI(api_key=openai_api_key)
+                endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+                if endpoint:
+                    from utils.azure import get_secret
+
+                    openai_api_key = get_secret("AZURE-OPENAI-KEY")
+                    base_url = f"{endpoint.rstrip('/')}/openai/v1/"
+                    _openai_client = OpenAI(
+                        api_key=openai_api_key,
+                        base_url=base_url,
+                    )
+                else:
+                    openai_api_key = os.environ.get("OPENAI_API_KEY")
+                    if not openai_api_key:
+                        raise ValueError(
+                            "OPENAI_API_KEY must be set to use OpenAI models."
+                        )
+                    _openai_client = OpenAI(api_key=openai_api_key)
     return _openai_client
 
 

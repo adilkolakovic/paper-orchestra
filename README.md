@@ -45,6 +45,20 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     SMTP_PASSWORD=your_password
     ```
 
+### Azure OpenAI / Microsoft Foundry
+
+To use an Azure OpenAI deployment, set `AZURE_OPENAI_ENDPOINT` and `OPENAI` in
+`.env`. `OPENAI` must contain the deployment name. The API key is loaded at
+runtime from the `AZURE-OPENAI-KEY` secret in Key Vault; by default the vault is
+`https://kv-portal-new.vault.azure.net/`. Set `KEYVAULT_URL` only if you use a
+different vault.
+
+Locally, authenticate with `az login` using an identity that can read Key Vault
+secrets. The Azure OpenAI mode uses Semantic Scholar for candidate-paper search.
+Semantic Scholar requests are paced at one request every two seconds; `429`
+responses honor `Retry-After`, and exhausted searches are skipped.
+The optional plotting workflow still uses Gemini for image generation.
+
 ## Dataset
 
 The dataset used for paper generation is **not included** in this code repository. It will be released separately at a later date.

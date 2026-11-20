@@ -26,7 +26,8 @@ from methods.prompts.literature_review_agent import (
     literature_review_agent_writter_prompt,
 )
 from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
-from utils.scholar_utils import s2_title_search
+from utils.openai_utils import is_azure_openai_deployment
+from utils.scholar_utils import s2_paper_batch, s2_paper_search, s2_title_search
 
 
 class CandidatePaper(BaseModel):
@@ -172,7 +173,7 @@ class HybridLiteratureAgent:
         if not active_tasks:
             return
 
-        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool=10)...")
+        self._safe_print(f"   🔎 Phase 1a: Candidate Discovery (MaxPool=10)...")
         all_candidates_with_tasks = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:  # Fast for Google Search!
@@ -197,15 +198,26 @@ class HybridLiteratureAgent:
                     )
 
         self._safe_print(
-            f"   📊 Phase 1b: Semantic Scholar Enrichment (Rate-limited, sequential)..."
+            "   📊 Phase 1b: Semantic Scholar batch enrichment..."
         )
-        import time
+        paper_ids = list(
+            dict.fromkeys(
+                paper_id
+                for item in all_candidates_with_tasks
+                if (paper_id := self._candidate_value(item["cand"], "paper_id"))
+            )
+        )
+        papers_by_id = s2_paper_batch(paper_ids) if paper_ids else {}
 
         for item in all_candidates_with_tasks:
-            # wait 1s per query to avoid SS rate limits!
-            time.sleep(1.0)
+            candidate = item["cand"]
+            paper_id = self._candidate_value(candidate, "paper_id")
             self._enrich_and_register_paper(
-                item["cand"], item["task"], registry, cutoff_date
+                candidate,
+                item["task"],
+                registry,
+                cutoff_date,
+                s2_data=papers_by_id.get(paper_id) if paper_id else None,
             )
 
     def _collect_search_tasks(self, outline: Dict) -> List[Dict]:
@@ -319,14 +331,36 @@ class HybridLiteratureAgent:
                 if candidates:
                     return candidates
                 retry_count += 1
-            except Exception as e:
+            except Exception as exc:
+                response = getattr(exc, "response", None)
+                if getattr(response, "status_code", None) == 429:
+                    retry_after = response.headers.get("Retry-After", "unspecified")
+                    self._safe_print(
+                        f"      ❌ Semantic Scholar rate limit for "
+                        f"'{task['focus'][:40]}...'; Retry-After: {retry_after}. "
+                        "Skipping further retries for this query."
+                    )
+                    return []
+                self._safe_print(
+                    f"      ❌ Candidate discovery failed for "
+                    f"'{task['focus'][:40]}...': {exc}"
+                )
                 retry_count += 1
         return []
 
-    def _enrich_and_register_paper(self, cand, task, registry, cutoff_date):
-        cand_title = getattr(cand, "title", None) or cand.get("title")
-        cand_year = getattr(cand, "year", None) or cand.get("year")
-        cand_reason = getattr(cand, "reason", None) or cand.get("reason", "")
+    @staticmethod
+    def _candidate_value(candidate, key, default=None):
+        if isinstance(candidate, dict):
+            return candidate.get(key, default)
+        return getattr(candidate, key, default)
+
+    def _enrich_and_register_paper(
+        self, cand, task, registry, cutoff_date, s2_data=None
+    ):
+        cand_title = self._candidate_value(cand, "title")
+        cand_year = self._candidate_value(cand, "year")
+        cand_reason = self._candidate_value(cand, "reason", "")
+        paper_id = self._candidate_value(cand, "paper_id")
 
         norm_title = self._normalize_title(cand_title)
 
@@ -335,7 +369,13 @@ class HybridLiteratureAgent:
                 return
 
         try:
-            s2_data = s2_title_search(cand_title, cand_year, cutoff_date)
+            if s2_data is None:
+                if paper_id:
+                    self._safe_print(
+                        f"      ⚠️ Semantic Scholar returned no details for '{cand_title}'."
+                    )
+                    return
+                s2_data = s2_title_search(cand_title, cand_year, cutoff_date)
 
             if s2_data:
                 if not self._is_paper_allowed(s2_data, cutoff_date):
@@ -379,8 +419,11 @@ class HybridLiteratureAgent:
                         self._safe_print(
                             f"      -> 📚 Added enriched paper: {full_obj.title}"
                         )
-        except Exception as e:
-            pass
+        except Exception as exc:
+            self._safe_print(
+                f"      ⚠️ Semantic Scholar enrichment failed for "
+                f"'{cand_title[:60]}': {exc}"
+            )
 
     def _is_paper_allowed(self, s2_data: Dict, cutoff_date_str: str) -> bool:
         if not cutoff_date_str:
@@ -424,6 +467,23 @@ class HybridLiteratureAgent:
         return True
 
     def _discover_candidates(self, task, outline, cutoff_date) -> List[CandidatePaper]:
+        if is_azure_openai_deployment(self.model_name):
+            papers = s2_paper_search(
+                query=task["focus"],
+                limit=1 if task.get("search_type") == "targeted" else 10,
+            )
+            reason = f"Semantic Scholar search for: {task['focus']}"
+            return [
+                {
+                    "paper_id": paper["paperId"],
+                    "title": paper["title"],
+                    "year": paper.get("year") or 0,
+                    "reason": reason,
+                }
+                for paper in papers
+                if self._is_paper_allowed(paper, cutoff_date)
+            ]
+
         intro_plan = outline.get("intro_related_work_plan", {}).get(
             "introduction_strategy", {}
         )

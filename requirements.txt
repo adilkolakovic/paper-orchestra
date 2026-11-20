@@ -1,4 +1,6 @@
 google-genai
+azure-identity
+azure-keyvault-secrets
 joblib
 json_repair
 matplotlib
