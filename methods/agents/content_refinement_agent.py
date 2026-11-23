@@ -124,7 +124,7 @@ class ContentRefinementAgent:
 
             prompt = (
                 """
-Analyze the provided page images of a research paper for formatting issues.
+Analyze the provided page images of the academic document for formatting issues.
 You must strictly follow the provided formatting guidelines and examples. Do not create rules based on your own assumptions or general knowledge if they are not explicitly supported by the guidelines or contradicted by the examples.
 
 You must output the status for EVERY SINGLE figure and table found in the paper, and then list any other text content or layout issues.
@@ -265,7 +265,7 @@ REFLECTION ITERATION {i+1}.
 --- CURRENT REVIEWER FEEDBACK (Score: {self.current_score}) ---
 {json.dumps(current_peer_review, indent=2)}
 
---- CONFERENCE GUIDELINES ---
+--- DOCUMENT GUIDELINES ---
 {context_files['guidelines']}
 
 --- EXPERIMENTAL LOG (Data Truth) ---
@@ -278,7 +278,7 @@ REFLECTION ITERATION {i+1}.
 {self.current_tex}
 
 INSTRUCTION: 
-1. Your goal is to IMPROVE the reviewer score (Current: {self.current_score}).
+1. Improve correctness, clarity, and alignment with the supplied document requirements; use the reviewer score as secondary feedback (Current: {self.current_score}).
 2. Address the 'Weaknesses' and 'Questions' in the Reviewer Feedback above.
 3. Output the JSON Worklog first, then the Full Revised LaTeX.
 """

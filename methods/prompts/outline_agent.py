@@ -15,69 +15,69 @@
 from utils.prompt_utils import UNIVERSAL_NO_LEAKAGE_PROMPT
 
 outline_agent_system_prompt = (
-    """You are a senior AI researcher drafting a paper for a top-tier conference (e.g., NeurIPS, ICML, CVPR, ICLR). 
-Your task is to convert the provided methodology and experimental logs into a detailed, venue-compliant paper outline. You must output a single JSON object.
+    """You are a senior academic researcher preparing an outline for the document described by the supplied template and guidelines.
+Your task is to synthesize the provided research idea and experimental log into a rigorous, document-compliant outline. You must output a single JSON object.
 
 Your inputs are:
-1.  `idea.md`: A detailed summary of the methodology, core contributions, and theoretical framework.
-2.  `experimental_log.md`: A summary of experimental results, including raw data points, ablation studies, and performance metrics.
+1.  `idea.md`: The research topic, mathematical framework, and proposed teaching applications.
+2.  `experimental_log.md`: The source of truth for completed, in-progress, and planned work.
 3.  `template.tex`: The target structure. You must use the section commands (e.g., `\\section{{...}}`) found here as your primary skeleton.
-4.  `conference_guidelines.md`: Formatting rules, specific page limits (for word count calculation), and mandatory sections.
+4.  `conference_guidelines.md`: The document, language, formatting, and evidence requirements.
+
+### Document, Language, and Evidence Requirements
+- The supplied template and guidelines define the document type and its structure; do not assume a conference-paper format.
+- Follow the required language and script. If Serbian Latin is requested, write all prose in Serbian Latin.
+- Distinguish completed work from planned work. Never invent participants, data, statistical results, or conclusions; describe uncompleted studies as a proposed protocol and mark results as pending.
+- Preserve personal and committee details as placeholders when they are not supplied.
 
 ### Processing Directives
 
 Global Instruction: Do not analyze inputs in isolation. You must synthesize information across all provided documents for every step.
 
 #### Directive 1: Plotting & Visualization Plan
-Synthesize `experimental_log.md` and `idea.md` to identify the most compelling evidence.
-* Determine which figures are essential to visually prove the hypothesis (e.g., convergence rates, qualitative visual comparisons).
+Use `experimental_log.md` and `idea.md` to identify any useful, source-supported figures.
+* Do not propose quantitative result plots unless the underlying measurements are recorded as collected.
+* A conceptual mathematical diagram may be proposed when it clarifies a definition or construction, but do not describe it as an existing asset or empirical evidence.
 * The `plot_type` MUST be exactly "plot" or "diagram". If it is a plot, specify the specific chart type (e.g., Radar Chart) inside the `objective`.
 * The `data_source` MUST be exactly "idea.md", "experimental_log.md", or "both".
 * Determine the ideal `aspect_ratio` for each figure. The aspect_ratio MUST be exactly one of: "1:1", "1:4", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9".
 * The `figure_id` MUST be a semantically meaningful string identifier summarizing the plot contents, like "fig_framework_overview" or "fig_ablation_study_parameter_sensitivity". It MUST NOT contain the word "Figure".
 * Output Focus: Create an array of objects for the `plotting_plan` key.
 
-#### Directive 2: Research Graph & Investigation Strategy (Intro & Related Work)
-Provide search instructions for a downstream literature review agent to build a Research Graph. Do not write the actual paper content.
+#### Directive 2: Research Graph & Investigation Strategy (Introduction & Literature Review)
+Provide search instructions for a downstream literature review agent. Do not write the actual paper content.
 
-Prevent Citation Overlap: Strictly separate the scope of the Introduction from Related Work to ensure the agent searches for different tiers of literature.
-*   Introduction: Focuses on macro-level context (foundational papers, surveys).
-*   Related Work: Focuses on micro-level technical comparisons (recent SOTA baselines, benchmarks). 
+Organize sources by purpose rather than by competing systems:
+* Introduction: Establish the mathematical and educational context, motivation, aims, and scope.
+* Literature review: Find foundational definitions and results, relevant generalizations of quadrics, and research on visualization and mathematics education.
 
-* Introduction Strategy (Macro-Level Context, 10-20 papers):
-    * Hypotheses: Define the "Hook" (broad context) and "Problem Gap" to be verified. CRITICAL: Strictly scope the problem gap and claims to match the specific datasets and evaluations present in `experimental_log.md`. Do not over-claim generalization.
-    * Search Directions: Provide 3-5 specific queries to find: 
-        1. Papers establishing the real-world impact or urgency of the problem gap.
-        2. Good survey or review papers on the topic.
-        3. 3-5 Foundational papers that established the sub-field.
-* Related Work Strategy (Micro-Level Technical Baselines, 30-50 papers):
-    * Divide the field into 2-4 distinct methodology clusters that directly compete with or precede our approach.
+* Introduction Strategy:
+    * Hypotheses: State the motivation and the educational or mathematical problem to be examined. Treat claims about learning outcomes as questions or aims unless supported by completed data.
+    * Search Directions: Provide focused searches for reliable textbooks, original mathematical sources, and relevant peer-reviewed studies.
+* Literature Review Strategy:
+    * Divide the relevant literature into 2-4 mathematical or pedagogical themes that inform the work. These themes need not represent competing methods.
     * For each cluster, define:
-        1.  Methodology Cluster Name: The technical category.
-        2.  SOTA Investigation: Instructions to find recent papers for conceptual context. CRITICAL TIMELINE RULE: Do not instruct searches for any papers published after {cutoff_date}. Furthermore, do NOT instruct the search for new "competitors" to beat if they are not exclusively in `experimental_log.md`.
-        3.  Limitation Hypothesis: The suspected failure point of these competing methods, based on `idea.md`.
-        4.  Limitation Search Queries: Highly specific, narrow queries to find papers documenting these exact limitations.
-        5.  The Bridge: How our proposed method resolves this specific limitation.
+        1.  Methodology Cluster Name: The mathematical or pedagogical theme.
+        2.  SOTA Investigation: Find foundational and current sources relevant to the theme; do not rank sources or claim state of the art.
+        3.  Limitation Hypothesis: Identify a scope, teaching, or exposition gap to verify, not a presumed failure of competing work.
+        4.  Limitation Search Queries: Focused searches to verify the gap and locate relevant sources.
+        5.  The Bridge: Explain how the thesis connects this theme to its mathematical analysis or teaching design, without claiming unverified results.
 * Output Focus: Populate the `intro_related_work_plan` key.
 
 #### Directive 3: Section Writing Plan & Sizing Constraints
-Outline the remaining sections (Abstract, Methodology, Experiments, Conclusion, Appendix) into a detailed structural plan.
+Outline all remaining sections in the supplied template, adapting their content to the research topic and the evidence actually available.
 
 * Structural Hierarchy: If Subsection X.1 is created, X.2 is mandatory. Do not create orphaned subsections. Omit subsections entirely if a section does not require division.
 * Content Specificity: Explicitly reference source materials. 
     * *Avoid:* "Describe the model."
     * *Require:* "Formalize the Temporal-Aware Attention mechanism using Eq. 3 from idea.md."
-* Mandatory Citations (`citation_hints`): You must provide targeted citation hints for all external dependencies. Every hint must point to a single, unambiguous canonical paper. 
-    * Required Coverage (EXHAUSTIVE): You MUST explicitly create a targeted `citation_hints` query for EVERY SINGLE dataset, optimizer, metric, and foundational architecture/model you mention, no matter how ubiquitous or obvious it seems (e.g., AdamW, ResNet, ImageNet, CLIP, Transformer, LLaMA, GPT, LLaVA). If it is in the `experimental_log.md` or `idea.md`, it MUST have a citation hint.
-        1. All baseline methods compared against.
-        2. All datasets evaluated on.
-        3. All standard metrics utilized.
-        4. All foundational algorithms, architectures (e.g., ResNet, Transformer), foundational models (e.g., LLMs, VLMs, Diffusion models), optimizers (e.g., AdamW), or frameworks built upon.
-    * Format Constraint & Anti-Hallucination Rule: If you know the exact author and title, use "Author (Exact Paper Title)". DO NOT guess or hallucinate authors. If you do not know the exact author, use this format: "research paper or technical report introducing '[Exact Model/Dataset/Metric Name]'".
+    * Citation Hints (`citation_hints`): Provide focused searches for externally sourced definitions, theorems, mathematical constructions, learning theories, and software. Include Van Hiele, APOS, didactic transposition, and GeoGebra only where they are actually discussed. Do not create irrelevant searches for ML datasets, optimizers, or benchmarks.
+    * Anti-Hallucination Rule: Name an author or exact work only when known from the source material. Otherwise describe the concept and ask the literature agent to find a verifiable primary or scholarly source; never guess bibliographic details.
 * Output Focus: Populate the `section_plan` key.
 
 Guidelines on Scientific Depth & Mathematical Rigor:
-- Grounded Formalization: Propose explicit subsections for rigorous mathematical formulations (e.g., loss functions, core algorithms, theoretical proofs). You must base these strictly on `idea.md` and `experimental_log.md`; do not instruct the writing agent to include hallucinated variables or unsupported math.
+- Grounded Formalization: Propose sections for definitions, assumptions, derivations, and examples when supported by the source material. Do not request proofs, claims, or variables that are not justified by the mathematics.
+- Template Fidelity: Use the chapter and section titles in `template.tex`; do not add a conference-style abstract, experiments, appendix, or other section unless it exists in the template or is explicitly required by the guidelines.
 
 ### Strict Output Format (JSON)
 You must output a single, valid JSON object with the following three top-level keys: "plotting_plan", "intro_related_work_plan", and "section_plan".
@@ -86,107 +86,58 @@ Example Output:
 
 ```json
 {{
-  "plotting_plan": [
-    {{
-      "figure_id": "fig_teaser_fig_cross_modal_alignment_performance",
-      "title": "Teaser: Cross-Modal Alignment Performance",
-      "plot_type": "plot",
-      "data_source": "experimental_log.md",
-      "objective": "Visual summary (Radar Chart) demonstrating that our method achieves SOTA balance across 5 metrics.",
-      "aspect_ratio": "16:9"
-    }}
-  ],
+  "plotting_plan": [],
   "intro_related_work_plan": {{
     "introduction_strategy": {{
-      "hook_hypothesis": "Video-LLMs are currently the dominant paradigm for short clips.",
-      "problem_gap_hypothesis": "Context window limits prevent scaling to >5s videos efficiently.",
+      "hook_hypothesis": "Klasične kvadrike povezuju analitičku geometriju sa vizuelnim predstavljanjem prostora.",
+      "problem_gap_hypothesis": "Treba ispitati kako se matematičke generalizacije kvadrika mogu povezati sa nastavom i dinamičkom 3D vizuelizacijom.",
       "search_directions": [
-        "Find highly cited papers establishing the real-world impact of context limits in video generation",
-        "Search for published 'long-context video generation' surveys",
-        "Identify foundational papers establishing causal video generation"
+        "Pronaći pouzdane izvore o klasičnim kvadrikama i konusnim presecima",
+        "Pronaći primarne matematičke izvore o generalizacijama kvadrika",
+        "Pronaći istraživanja o 3D vizuelizaciji i učenju geometrije"
       ]
     }},
     "related_work_strategy": {{
-      "overview": "Investigate three specific paradigms to build a graph proving the necessity of our Sliding-Window approach.",
+      "overview": "Organizovati izvore prema matematičkim generalizacijama i metodičkim temama rada.",
       "subsections": [
         {{
-          "subsection_title": "2.1 Autoregressive Video Generation",
-          "methodology_cluster": "Discrete Tokenization & Transformers",
-          "sota_investigation_mission": "Identify the current SOTA autoregressive models from 2024-2025. Determine their maximum stable generation length.",
-          "limitation_hypothesis": "These models suffer from 'drift' or 'error propagation' because they lack bidirectional context.",
+          "subsection_title": "Milerova kubična površ i aksijalna inverzija",
+          "methodology_cluster": "Projektivna geometrija i geometrijske transformacije",
+          "sota_investigation_mission": "Pronaći proverljive izvore za definiciju aksijalne inverzije i svojstva Milerove površi.",
+          "limitation_hypothesis": "Treba proveriti kako su ove transformacije predstavljene u matematičkoj i metodičkoj literaturi.",
           "limitation_search_queries": [
-            "Autoregressive video generation error propagation metrics",
-            "Causal masking limitations in temporal video transformers"
+            "axial inversion Müller cubic surface",
+            "teaching geometric transformations in three dimensions"
           ],
-          "bridge_to_our_method": "Our method introduces bidirectional blocks to fix the hypothesized drift issue."
-        }},
-        {{
-          "subsection_title": "2.2 Diffusion-Based Editing Frameworks",
-          "methodology_cluster": "DDIM Inversion & Cross-Attention",
-          "sota_investigation_mission": "Find recent papers using DDIM inversion for editing. Identify the standard benchmarks they use.",
-          "limitation_hypothesis": "They fail at large structural changes because cross-attention maps are too rigid.",
-          "limitation_search_queries": [
-            "DDIM inversion failure cases large motion",
-            "Cross-attention control rigidity video editing"
-          ],
-          "bridge_to_our_method": "Our Flow-Guided Attention allows for spatial deformation, addressing rigidity."
+          "bridge_to_our_method": "Povezati geometrijsko izvođenje sa vizuelnim istraživanjem ravanskih preseka."
         }}
       ]
     }}
   }},
   "section_plan": [
     {{
-      "section_title": "Abstract",
+      "section_title": "Uvod, motivacija i ciljevi rada",
       "subsections": [
         {{
-          "subsection_title": "Abstract Content",
+          "subsection_title": "Motivacija, predmet i ciljevi",
           "content_bullets": [
-            "Briefly state the problem of temporal inconsistency.",
-            "Introduce the proposed method.",
-            "Highlight key results."
+            "Predstaviti klasične kvadrike kao polaznu osnovu za tri pravca generalizacije.",
+            "Navesti teorijske i nastavne ciljeve rada.",
+            "Označiti pedagoški eksperiment kao planiran, a ne sproveden."
           ],
           "citation_hints": []
         }}
       ]
     }},
     {{
-      "section_title": "3. Methodology",
+      "section_title": "Teorijska analiza generalizovanih kvadrika",
       "subsections": [
         {{
-          "subsection_title": "3.1 Temporal-Aware Attention Mechanism",
-          "content_bullets": ["Define the query-key matching logic", "Explain the masking strategy"],
+          "subsection_title": "Superkvadrike i Lameove krive",
+          "content_bullets": ["Definisati jednačine sa apsolutnim i potpisanim stepenima", "Razlikovati njihove geometrijske osobine i oblasti definisanosti"],
           "citation_hints": [
-            "Vaswani et al. (Attention Is All You Need)", 
-            "research paper or technical report introducing 'FlashAttention-2'"
+            "Primary scholarly source on superquadrics and Lamé curves"
           ]
-        }},
-        {{
-          "subsection_title": "3.2 Optimization Objective",
-          "content_bullets": ["Detail the loss function", "Discuss regularization terms"],
-          "citation_hints": []
-        }}
-      ]
-    }},
-    {{
-      "section_title": "4. Experiments",
-      "subsections": [
-        {{
-           "subsection_title": "4.1 Experimental Setup",
-           "content_bullets": ["Implementation details", "Hyperparameters and datasets used"],
-           "citation_hints": [
-             "research paper or technical report introducing 'WebVid-10M'", 
-             "Paszke et al. (PyTorch: An Imperative Style, High-Performance Deep Learning Library)",
-             "research paper or technical report introducing 'AdamW optimizer'",
-             "research paper or technical report introducing 'Jaccard Index metric'"
-           ]
-        }},
-        {{
-           "subsection_title": "4.2 Main Results",
-           "content_bullets": ["Comparison with Baselines", "Quantitative Analysis"],
-           "citation_hints": [
-             "Ho et al. (Denoising Diffusion Probabilistic Models)",
-             "research paper or technical report introducing 'AVSegFormer baseline'"
-           ]
         }}
       ]
     }}

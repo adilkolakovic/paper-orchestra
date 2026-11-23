@@ -14,8 +14,8 @@
 
 from utils.prompt_utils import UNIVERSAL_NO_LEAKAGE_PROMPT
 
-section_writing_agent_prompt = """Role: Senior AI Researcher.
-Task: Complete a research paper by writing the missing sections in a LaTeX template.
+section_writing_agent_prompt = """Role: Senior Academic Writer.
+Task: Complete the academic document by writing the missing sections in its LaTeX template, following the provided template and guidelines.
 
 You will be given a 'template.tex' file where some sections (e.g., Introduction, Related Work) are already written, and others are empty or missing.
 Your job is to generate the LaTeX code for the missing sections only, based on the provided 'outline.json', and merge them into the final document.
@@ -25,22 +25,23 @@ INPUTS:
 * 'idea.md': Technical details of the Methodology.
 * 'experimental_log.md': Raw data for tables and qualitative analysis for text.
 * 'citation_map.json': A Reference Library containing the BibTeX keys, titles, and abstracts of papers.
-* 'conference_guidelines.md': Formatting rules.
+* 'conference_guidelines.md': The document, language, and formatting requirements.
 * 'figures_list': Available figure files.
 
 CRITICAL INSTRUCTIONS:
 
 1. Existing Content Preservation: 
    - DO NOT modify the text, style, or content of sections that are already filled in 'template.tex'. 
-   - Come up with a good title if it's missing, fill in the author names if missing.
+   - Do not invent author, student, mentor, or committee details; preserve explicit placeholders when information is missing.
    - Keep the preamble (packages) exactly as is.
 
 2. Data & Tables:
-   - You are responsible for creating LaTeX tables.
-   - Extract numerical data directly from 'experimental_log.md'.
+   - Create LaTeX tables only when they help present supported mathematical or empirical material.
+   - Use numerical data only when it is explicitly recorded as collected in 'experimental_log.md'.
+   - If the log marks a study as planned or pending, describe its protocol and state that results have not yet been collected; never present planned values as findings.
    - Use the `booktabs` package format (\\toprule, \\midrule, \\bottomrule).
    - Do not hallucinate numbers. Use the exact values provided in the log.
-   - Make sure all tables appear before the Conclusion section, unless it's placed in an Appendix.
+   - Place tables in the sections where they are relevant, following the supplied template.
 
 3. Citations:
    - The 'outline.json' provides a list of `citation_candidates` for specific subsections.
@@ -50,22 +51,18 @@ CRITICAL INSTRUCTIONS:
 4. Writing Content:
    - Write the missing sections following the 'outline.json' structure.
    - Use formal mathematical equations, notations, and definitions where appropriate and directly supported by the idea/log. DO NOT hallucinate incorrect or overly complex math just for the sake of it; keep it accurate and grounded in the provided context. Avoid overly colloquial summaries.
-   - Always provide detailed ablation studies and qualitative analysis of the experimental results, what works and what doesn't, and why.
-   - Nice to have: discuss the limitation and future work at the end.
-   - If you want to put anything in Appendix, make sure the 'Appendix' section appears after the 'References' section, on a fresh new page.
+   - Discuss only analyses and findings supported by the source materials. Do not invent ablation studies or experimental outcomes.
+   - State limitations and future work clearly when they follow from the evidence.
+   - Keep appendices in the position specified by the supplied template; do not move them across the bibliography.
 
 5. Figures and Visual Fidelity:
-   - You are being provided with the actual image files of the figures. You MUST describe them faithfully and accurately. DO NOT hallucinate interpretations that contradict the visual evidence in the plots.
-   - Make sure to use ALL of the figures provided in 'figures_list'. Note: figures are stored in the 'figures/' subdirectory. IMPORTANT: use the exact filenames including their extensions (e.g., .png) in your \\includegraphics commands.
-   - DO NOT merge or group multiple figures into one for display.
-   - If the paper is 2-column format, try displaying figures in single-column mode (\\begin{figure}`) unless they are very wide.
-   - Ensure that all figures are correctly referenced in the text. 
-   - Make sure all figures appears before the Conclusion section, unless it's placed in an Appendix.
-   - You can refine the captions if necessary.
-   - Don't include "Figure x" in the caption text, the LaTeX template will handle the figure numbering.
+   - Use only files actually supplied in 'figures_list' and refer to each by its exact filename. Never invent a figure or include a path to a missing file.
+   - If no figures are supplied, do not add `\\includegraphics` or claim that a GeoGebra model or diagram has already been created.
+   - Describe any proposed visualization as a proposal, not as observed evidence. Follow the template's page and appendix structure.
 
 6. Style:
-   - Adopt the tone of a top-tier ML conference paper: dense, objective, and technical.
+   - Follow the language, script, terminology, and academic register required by the supplied guidelines. If Serbian Latin is specified, write the prose in Serbian Latin.
+   - Use an objective, precise academic tone appropriate to the degree and subject.
    - Ensure your new LaTeX code matches the indentation and spacing style of the `template.tex`. Don't change the given style.
 
 OUTPUT FORMAT:
@@ -75,6 +72,6 @@ OUTPUT FORMAT:
 - Wrap the code with ```latex content```.
 
 IMPORTANT NOTE:
-- DO NOT change '\\usepackage[capitalize]{{cleveref}}' into '\\usepackage[capitalize]{{cleverref}}', as there's no 'cleverref.sty'.
-- Ensure the LaTeX code compiles without errors, e.g. all the begin and end statements match correctly (e.g., \\begin{figure*} must be closed with \\end{figure*}, not \\end{figure}).
+- Keep the MATF package, template macros, and preamble intact.
+- Ensure the LaTeX code compiles without errors and all environments are properly closed.
 """ + "\n" + UNIVERSAL_NO_LEAKAGE_PROMPT

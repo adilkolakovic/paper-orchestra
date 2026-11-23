@@ -50,6 +50,35 @@ class AzureOpenAIRoutingTests(unittest.TestCase):
             [{"type": "text", "text": "test prompt"}],
         )
 
+    def test_azure_route_omits_unsupported_temperature(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AZURE_OPENAI_ENDPOINT": "https://rzsoai-ist.openai.azure.com/",
+                    "OPENAI": "paper-writer",
+                },
+            ),
+            patch(
+                "utils.gemini_utils.call_openai_models_with_content",
+                return_value={"raw_response": "ok", "parsed_response": "ok"},
+            ) as openai_call,
+        ):
+            call_gemini_with_contents(
+                contents=[types.Part.from_text(text="review prompt")],
+                model_name="paper-writer",
+                generation_configs={
+                    "temperature": 0.75,
+                    "system_instruction": "reviewer instructions",
+                },
+                result_parsing_func=lambda response: response,
+            )
+
+        self.assertNotIn(
+            "temperature",
+            openai_call.call_args.kwargs["generation_configs"],
+        )
+
     def test_semantic_scholar_retries_rate_limited_search(self):
         limited_response = Mock(
             status_code=429,

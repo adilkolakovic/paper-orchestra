@@ -221,6 +221,7 @@ def _call_azure_openai_with_contents(
             "Gemini tools are not supported by the Azure OpenAI backend."
         )
     configs.pop("tools", None)
+    configs.pop("temperature", None)
     system_instruction = configs.pop("system_instruction", None)
 
     if isinstance(contents, (str, types.Part, types.Content)):
